@@ -13,7 +13,7 @@ DEFAULT_LEVELS = {
     "massunban": 75, "massunmute": 75, "massforcewarn": 75, "massforcemute": 75,
     "massforcekick": 75, "massforceban": 100, "raidmode": 100,
     "lockdown": 50, "unlock": 50, "lock": 50, "hide": 50, "unhide": 50,
-    "nuke": 75, "modnick": 25, "history": 25, "watch": 50, "unwatch": 50,
+    "modnick": 25, "history": 25, "watch": 50, "unwatch": 50,
     "watchlist": 25, "immune": 75, "unimmune": 75, "immunelist": 25,
     "roleban": 75, "unroleban": 75, "rolebanned": 25, "nick": 50,
     "forcenick": 75, "resetnick": 50, "forceresetnick": 75, "locknick": 75,

@@ -548,16 +548,6 @@ class Moderation(commands.Cog):
         await target.set_permissions(ctx.guild.default_role, overwrite=overwrite)
         await ctx.send(f"{target.mention} is now visible")
 
-    @commands.command(name="nuke")
-    async def nuke_cmd(self, ctx, channel: discord.TextChannel = None):
-        config = await self.bot.config_loader.get_config(ctx.guild.id)
-        if not self._check(config, ctx.author, "nuke"):
-            return
-        target = channel or ctx.channel
-        new_ch = await target.clone(reason=f"Nuke by {ctx.author}")
-        await target.delete()
-        await new_ch.send(_get_msg(config, "nuke_success") or "Channel nuked")
-
     # ── WATCHLIST ──────────────────────────────────────────────────
     @commands.command(name="watch")
     async def watch_cmd(self, ctx, member: discord.Member, *, reason: str = None):

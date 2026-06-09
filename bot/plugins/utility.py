@@ -212,7 +212,7 @@ class Utility(commands.Cog):
 
         # Build help by category
         categories = {
-            "Moderation": ["ban", "forceban", "unban", "kick", "mute", "unmute", "warn", "purge", "slowmode", "lock", "unlock", "hide", "unhide", "nuke"],
+            "Moderation": ["ban", "forceban", "unban", "kick", "mute", "unmute", "warn", "purge", "slowmode", "lock", "unlock", "hide", "unhide"],
             "Cases": ["case", "cases", "servercases", "deletecase", "reason", "editcase", "addcase", "note", "viewnotes", "casecount"],
             "Utility": ["userinfo", "avatar", "banner", "serverinfo", "roleinfo", "roles", "joined", "membercount", "snowflake", "permissions", "inrole", "charcount", "warncount", "modstats"],
             "Tags": ["tag"],
