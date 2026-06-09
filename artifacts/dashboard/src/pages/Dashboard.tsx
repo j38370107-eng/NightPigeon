@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import YamlEditor from "@/components/YamlEditor";
 
 const API = "/api";
@@ -32,6 +32,24 @@ interface Guild {
   hasConfig: boolean;
 }
 
+interface Case {
+  id: number;
+  userId: string;
+  moderatorId: string;
+  action: string;
+  reason: string | null;
+  duration: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+interface CasesResponse {
+  cases: Case[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 function GuildIcon({ guild }: { guild: Guild }) {
   if (guild.icon) {
     return (
@@ -56,6 +74,204 @@ const GLASS = {
   backdropFilter: "blur(12px)",
 };
 
+const ACTION_STYLES: Record<string, { bg: string; color: string; border: string }> = {
+  ban:       { bg: "rgba(239,68,68,0.18)",   color: "rgba(252,165,165,0.95)",  border: "rgba(239,68,68,0.3)" },
+  forceban:  { bg: "rgba(239,68,68,0.18)",   color: "rgba(252,165,165,0.95)",  border: "rgba(239,68,68,0.3)" },
+  tempban:   { bg: "rgba(239,68,68,0.14)",   color: "rgba(252,165,165,0.85)",  border: "rgba(239,68,68,0.25)" },
+  kick:      { bg: "rgba(249,115,22,0.18)",  color: "rgba(253,186,116,0.95)",  border: "rgba(249,115,22,0.3)" },
+  mute:      { bg: "rgba(234,179,8,0.15)",   color: "rgba(253,224,71,0.95)",   border: "rgba(234,179,8,0.3)" },
+  warn:      { bg: "rgba(99,102,241,0.18)",  color: "rgba(165,180,252,0.95)",  border: "rgba(99,102,241,0.3)" },
+  unban:     { bg: "rgba(34,197,94,0.14)",   color: "rgba(134,239,172,0.95)",  border: "rgba(34,197,94,0.25)" },
+  unmute:    { bg: "rgba(34,197,94,0.14)",   color: "rgba(134,239,172,0.95)",  border: "rgba(34,197,94,0.25)" },
+  note:      { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)",  border: "rgba(255,255,255,0.12)" },
+  softban:   { bg: "rgba(239,68,68,0.12)",   color: "rgba(252,165,165,0.8)",   border: "rgba(239,68,68,0.2)" },
+};
+
+function ActionBadge({ action }: { action: string }) {
+  const s = ACTION_STYLES[action] ?? { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "rgba(255,255,255,0.12)" };
+  return (
+    <span className="text-xs px-2 py-0.5 rounded font-medium" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+      {action}
+    </span>
+  );
+}
+
+function truncateId(id: string) {
+  return id.length > 8 ? `…${id.slice(-6)}` : id;
+}
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+const PAGE_SIZE = 25;
+const ACTION_FILTERS = ["all", "ban", "forceban", "tempban", "kick", "mute", "warn", "unban", "unmute", "softban", "note"];
+
+function CasesView({ guild }: { guild: Guild }) {
+  const [actionFilter, setActionFilter] = useState("all");
+  const [userIdSearch, setUserIdSearch] = useState("");
+  const [page, setPage] = useState(0);
+
+  const offset = page * PAGE_SIZE;
+
+  const { data, isLoading, isError } = useQuery<CasesResponse>({
+    queryKey: ["cases", guild.id, actionFilter, userIdSearch, offset],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+        action: actionFilter,
+      });
+      if (userIdSearch.trim()) params.set("user_id", userIdSearch.trim());
+      return apiFetch<CasesResponse>(`/guilds/${guild.id}/cases?${params}`);
+    },
+    retry: false,
+  });
+
+  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
+
+  const handleSearchChange = (val: string) => {
+    setUserIdSearch(val);
+    setPage(0);
+  };
+
+  const handleFilterChange = (val: string) => {
+    setActionFilter(val);
+    setPage(0);
+  };
+
+  return (
+    <div className="flex flex-col gap-4 flex-1 min-h-0">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-40">
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: "rgba(255,255,255,0.3)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Filter by user ID…"
+            value={userIdSearch}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm outline-none"
+            style={{ ...GLASS, color: "rgba(255,255,255,0.75)", caretColor: "rgba(129,140,248,0.9)" }}
+          />
+        </div>
+        <div className="flex gap-1 flex-wrap">
+          {ACTION_FILTERS.map((a) => (
+            <button
+              key={a}
+              onClick={() => handleFilterChange(a)}
+              className="px-2.5 py-1 rounded text-xs font-medium transition-colors capitalize"
+              style={actionFilter === a
+                ? { background: "rgba(99,102,241,0.35)", color: "rgba(165,180,252,0.95)", border: "1px solid rgba(129,140,248,0.4)" }
+                : { ...GLASS, color: "rgba(255,255,255,0.4)" }}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)", minHeight: 0 }}>
+        <div className="h-full overflow-y-auto" style={{ background: "rgba(8,10,24,0.6)" }}>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-5 h-5 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
+            </div>
+          ) : isError ? (
+            <div className="flex items-center justify-center py-20">
+              <p className="text-sm" style={{ color: "rgba(252,165,165,0.8)" }}>Failed to load cases.</p>
+            </div>
+          ) : !data || data.cases.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-2">
+              <svg className="w-8 h-8" style={{ color: "rgba(255,255,255,0.15)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No cases found</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  {["#", "Action", "User", "Moderator", "Reason", "Duration", "Date"].map((h) => (
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.cases.map((c, i) => (
+                  <tr
+                    key={c.id}
+                    style={{
+                      borderBottom: i < data.cases.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <td className="px-4 py-2.5 font-mono text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                      {c.id}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <ActionBadge action={c.action} />
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs" style={{ color: "rgba(165,180,252,0.8)" }} title={c.userId}>
+                      {truncateId(c.userId)}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs" style={{ color: "rgba(255,255,255,0.4)" }} title={c.moderatorId}>
+                      {truncateId(c.moderatorId)}
+                    </td>
+                    <td className="px-4 py-2.5 max-w-xs">
+                      <span className="truncate block text-xs" style={{ color: "rgba(255,255,255,0.6)" }} title={c.reason ?? ""}>
+                        {c.reason ?? <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                      {c.duration ?? <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs whitespace-nowrap" style={{ color: "rgba(255,255,255,0.35)" }}>
+                      {formatDate(c.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {data && totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <span>{data.total.toLocaleString()} cases total</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="px-2.5 py-1 rounded transition-colors"
+              style={page === 0 ? { ...GLASS, color: "rgba(255,255,255,0.2)", cursor: "not-allowed" } : { ...GLASS, color: "rgba(255,255,255,0.6)" }}
+            >
+              ←
+            </button>
+            <span style={{ color: "rgba(255,255,255,0.5)" }}>
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="px-2.5 py-1 rounded transition-colors"
+              style={page >= totalPages - 1 ? { ...GLASS, color: "rgba(255,255,255,0.2)", cursor: "not-allowed" } : { ...GLASS, color: "rgba(255,255,255,0.6)" }}
+            >
+              →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [selectedGuild, setSelectedGuild] = useState<Guild | null>(null);
@@ -63,22 +279,16 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"editor" | "cases">("editor");
   const queryClient = useQueryClient();
 
-  const {
-    data: user,
-    isLoading: authLoading,
-    error: authError,
-  } = useQuery<User>({
+  const { data: user, isLoading: authLoading, error: authError } = useQuery<User>({
     queryKey: ["me"],
     queryFn: () => apiFetch<User>("/auth/me"),
     retry: false,
   });
 
-  const {
-    data: guilds,
-    isLoading: guildsLoading,
-  } = useQuery<Guild[]>({
+  const { data: guilds, isLoading: guildsLoading } = useQuery<Guild[]>({
     queryKey: ["guilds"],
     queryFn: () => apiFetch<Guild[]>("/guilds"),
     enabled: !!user,
@@ -93,9 +303,7 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    if (configData?.yaml != null) {
-      setYamlValue(configData.yaml);
-    }
+    if (configData?.yaml != null) setYamlValue(configData.yaml);
   }, [configData]);
 
   const handleSave = async () => {
@@ -121,6 +329,13 @@ export default function Dashboard() {
     await fetch(`${API}/auth/logout`, { method: "POST", credentials: "include" });
     queryClient.clear();
     setLocation("/");
+  };
+
+  const selectGuild = (guild: Guild) => {
+    setSelectedGuild(guild);
+    setYamlValue("");
+    setSaveError(null);
+    setActiveTab("editor");
   };
 
   const isAuthError = (authError as any)?.status === 401 || authError != null;
@@ -157,11 +372,7 @@ export default function Dashboard() {
           <a
             href="/api/auth/discord"
             className="flex items-center gap-2.5 px-6 py-2.5 rounded-lg font-semibold text-white text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
-            style={{
-              background: "rgba(88,101,242,0.9)",
-              border: "1px solid rgba(129,140,248,0.5)",
-              boxShadow: "0 4px 20px rgba(99,102,241,0.3)",
-            }}
+            style={{ background: "rgba(88,101,242,0.9)", border: "1px solid rgba(129,140,248,0.5)", boxShadow: "0 4px 20px rgba(99,102,241,0.3)" }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
               <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.031.053a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
@@ -260,7 +471,7 @@ export default function Dashboard() {
                 {(guilds ?? []).map((guild) => (
                   <button
                     key={guild.id}
-                    onClick={() => { setSelectedGuild(guild); setYamlValue(""); setSaveError(null); }}
+                    onClick={() => selectGuild(guild)}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150"
                     style={selectedGuild?.id === guild.id
                       ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(129,140,248,0.35)", color: "rgba(255,255,255,0.95)" }
@@ -298,37 +509,63 @@ export default function Dashboard() {
                     <GuildIcon guild={selectedGuild} />
                     <div>
                       <h1 className="text-white font-semibold text-base">{selectedGuild.name}</h1>
-                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>YAML Configuration</p>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                        {activeTab === "editor" ? "YAML Configuration" : "Moderation Cases"}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {saveError && (
-                      <span className="text-xs px-2 py-1 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "rgba(252,165,165,0.9)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                        {saveError}
-                      </span>
+                    <div className="flex rounded-lg overflow-hidden text-sm" style={{ ...GLASS }}>
+                      {(["editor", "cases"] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setActiveTab(t)}
+                          className="px-4 py-1.5 transition-colors"
+                          style={activeTab === t
+                            ? { background: "rgba(99,102,241,0.4)", color: "rgba(255,255,255,0.95)" }
+                            : { color: "rgba(255,255,255,0.45)" }}
+                        >
+                          {t === "editor" ? "YAML" : "Cases"}
+                        </button>
+                      ))}
+                    </div>
+                    {activeTab === "editor" && (
+                      <>
+                        {saveError && (
+                          <span className="text-xs px-2 py-1 rounded" style={{ background: "rgba(239,68,68,0.15)", color: "rgba(252,165,165,0.9)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                            {saveError}
+                          </span>
+                        )}
+                        <button
+                          onClick={handleSave}
+                          disabled={saving || configLoading}
+                          className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
+                          style={saved
+                            ? { background: "rgba(34,197,94,0.25)", color: "rgba(134,239,172,0.95)", border: "1px solid rgba(34,197,94,0.3)" }
+                            : { background: "rgba(99,102,241,0.4)", color: "rgba(255,255,255,0.95)", border: "1px solid rgba(129,140,248,0.35)" }}
+                        >
+                          {saving ? "Saving…" : saved ? "✓ Saved" : "Save Config"}
+                        </button>
+                      </>
                     )}
-                    <button
-                      onClick={handleSave}
-                      disabled={saving || configLoading}
-                      className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
-                      style={saved
-                        ? { background: "rgba(34,197,94,0.25)", color: "rgba(134,239,172,0.95)", border: "1px solid rgba(34,197,94,0.3)" }
-                        : { background: "rgba(99,102,241,0.4)", color: "rgba(255,255,255,0.95)", border: "1px solid rgba(129,140,248,0.35)" }}
-                    >
-                      {saving ? "Saving…" : saved ? "✓ Saved" : "Save Config"}
-                    </button>
                   </div>
                 </div>
 
-                <div className="flex-1 rounded-xl overflow-hidden" style={{ minHeight: 0, height: "calc(100vh - 220px)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  {configLoading ? (
-                    <div className="h-full flex items-center justify-center" style={{ background: "rgb(19,21,36)" }}>
-                      <div className="w-5 h-5 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
-                    </div>
-                  ) : (
-                    <YamlEditor value={yamlValue} onChange={setYamlValue} />
-                  )}
-                </div>
+                {activeTab === "editor" ? (
+                  <div className="flex-1 rounded-xl overflow-hidden" style={{ minHeight: 0, height: "calc(100vh - 220px)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    {configLoading ? (
+                      <div className="h-full flex items-center justify-center" style={{ background: "rgb(19,21,36)" }}>
+                        <div className="w-5 h-5 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
+                      </div>
+                    ) : (
+                      <YamlEditor value={yamlValue} onChange={setYamlValue} />
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col flex-1 min-h-0" style={{ height: "calc(100vh - 220px)" }}>
+                    <CasesView guild={selectedGuild} />
+                  </div>
+                )}
               </div>
             )}
           </div>

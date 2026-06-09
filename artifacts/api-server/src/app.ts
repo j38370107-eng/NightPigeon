@@ -6,6 +6,7 @@ import ConnectPgSimple from "connect-pg-simple";
 import router from "./routes";
 import authRouter from "./routes/auth";
 import guildsRouter from "./routes/guilds";
+import casesRouter from "./routes/cases";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
 
@@ -61,5 +62,6 @@ app.use(
 app.use("/api", router);
 app.use("/api/auth", authRouter);
 app.use("/api/guilds", guildsRouter);
+app.use("/api/guilds/:guildId/cases", casesRouter);
 
 export default app;
