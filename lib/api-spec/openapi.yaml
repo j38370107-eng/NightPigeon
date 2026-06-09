@@ -1,22 +1,24 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Bot Dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: guilds
+    description: Guild configuration
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +26,148 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/discord:
+    get:
+      operationId: discordAuthRedirect
+      tags: [auth]
+      summary: Redirect to Discord OAuth
+      responses:
+        "302":
+          description: Redirect to Discord
+
+  /auth/callback:
+    get:
+      operationId: discordAuthCallback
+      tags: [auth]
+      summary: Discord OAuth callback
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to dashboard
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not authenticated
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+
+  /guilds:
+    get:
+      operationId: getGuilds
+      tags: [guilds]
+      summary: Get guilds the current user can manage
+      responses:
+        "200":
+          description: List of guilds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Guild"
+        "401":
+          description: Not authenticated
+
+  /guilds/{guildId}/config:
+    get:
+      operationId: getGuildConfig
+      tags: [guilds]
+      summary: Get guild YAML config
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Guild config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuildConfig"
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized
+        "404":
+          description: Guild not found
+
+    put:
+      operationId: updateGuildConfig
+      tags: [guilds]
+      summary: Update guild YAML config
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuildConfigInput"
+      responses:
+        "200":
+          description: Config updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuildConfig"
+        "400":
+          description: Invalid YAML
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized
+
+    delete:
+      operationId: resetGuildConfig
+      tags: [guilds]
+      summary: Reset guild config to defaults
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Config reset
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +178,57 @@ components:
       required:
         - status
 
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        avatar:
+          type: ["string", "null"]
+        discriminator:
+          type: string
+      required:
+        - id
+        - username
+        - discriminator
+
+    Guild:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        icon:
+          type: ["string", "null"]
+        memberCount:
+          type: ["integer", "null"]
+        hasConfig:
+          type: boolean
+      required:
+        - id
+        - name
+        - hasConfig
+
+    GuildConfig:
+      type: object
+      properties:
+        guildId:
+          type: string
+        yaml:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+      required:
+        - guildId
+        - yaml
+
+    GuildConfigInput:
+      type: object
+      properties:
+        yaml:
+          type: string
+      required:
+        - yaml
