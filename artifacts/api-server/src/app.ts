@@ -34,19 +34,31 @@ app.use(
   }),
 );
 
+const dashboardUrl = process.env.DASHBOARD_URL;
+const allowedOrigins = ["http://localhost:5173", "http://localhost:3000"];
+if (dashboardUrl) allowedOrigins.push(dashboardUrl.replace(/\/$/, ""));
+
 app.use(cors({
-  origin: true,
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.some((o) => origin === o || origin.startsWith(o))) {
+      cb(null, true);
+    } else {
+      cb(null, false);
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+const crossOrigin = !!dashboardUrl;
 
 app.use(
   session({
     store: new PgSession({
       pool: pool as any,
       tableName: "sessions",
-      createTableIfMissing: false,
+      createTableIfMissing: true,
     }),
     secret: process.env.SESSION_SECRET || "discord-bot-dashboard-secret-change-me",
     resave: false,
@@ -54,6 +66,7 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
+      sameSite: crossOrigin ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     },
   })

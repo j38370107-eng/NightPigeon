@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import YamlEditor from "@/components/YamlEditor";
 
-const API = "/api";
+const API = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "") || "/api";
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
@@ -326,7 +326,7 @@ export default function Dashboard() {
   };
 
   const handleLogout = async () => {
-    await fetch(`${API}/auth/logout`, { method: "POST", credentials: "include" });
+    await fetch(`${API}/auth/logout`, { method: "POST", credentials: "include", headers: {} });
     queryClient.clear();
     setLocation("/");
   };
@@ -370,7 +370,7 @@ export default function Dashboard() {
             </p>
           </div>
           <a
-            href="/api/auth/discord"
+            href={`${API}/auth/discord`}
             className="flex items-center gap-2.5 px-6 py-2.5 rounded-lg font-semibold text-white text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
             style={{ background: "rgba(88,101,242,0.9)", border: "1px solid rgba(129,140,248,0.5)", boxShadow: "0 4px 20px rgba(99,102,241,0.3)" }}
           >
