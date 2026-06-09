@@ -2,25 +2,65 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import YamlEditor from "@/components/YamlEditor";
 
-const DEFAULT_CONFIG = `# ZepBot Server Configuration
-# Visit /docs for full plugin reference
+const DEFAULT_CONFIG = `# Night Pigeon Server Configuration
+# Visit /docs (Wikipedia) for the full plugin reference
 
 prefix: "!"
 
+# ── Permission Levels ──────────────────────────────────────────
+# Range: 0–100. Bot owner is always 1000.
+# Assign levels to users (by ID) or roles (by ID).
+# Each command has a default minimum level you can override.
 levels:
-  users: {}
-  roles: {}
+  users:
+    "YOUR_USER_ID": 100    # Give yourself full access
+  roles:
+    "STAFF_ROLE_ID": 50    # Staff can use mod commands
+    "MOD_ROLE_ID": 75      # Mods get higher access
   commands:
     ban: 50
     kick: 25
     mute: 25
+    warn: 15
+    massban: 100
+    antinuke: 75
 
+# ── Tags ───────────────────────────────────────────────────────
+# Quick-reply shortcuts usable with !tag <name>
+tags:
+  rules: "Please read the rules in #rules!"
+  support: "Please open a ticket in #support."
+
+# ── Plugins ────────────────────────────────────────────────────
 plugins:
+
   moderation:
     enabled: true
-    mute_role: null
-    dm_on_action: true
-    log_channel: null
+    mute_role: null              # Role ID for mute (required for mute commands)
+    dm_on_action: true           # DM users when they are actioned
+    mute_remove_roles: false     # Strip all roles when muting
+    ban_delete_message_days: 1   # How many days of messages to purge on ban
+    messages:
+      ban_success: "{user} has been banned | Case: {case_id}"
+      kick_success: "{user} has been kicked | Case: {case_id}"
+      mute_success: "{user} has been muted | Duration: {duration} | Case: {case_id}"
+      warn_success: "{user} has been warned | Case: {case_id}"
+      ban_dm: "You have been banned from {server} | Reason: {reason}"
+      kick_dm: "You have been kicked from {server} | Reason: {reason}"
+      mute_dm: "You have been muted in {server} | Duration: {duration} | Reason: {reason}"
+      warn_dm: "You have been warned in {server} | Reason: {reason}"
+
+  logging:
+    enabled: false
+    channels:
+      moderation: null    # Mod actions (ban, kick, mute, warn)
+      messages: null      # Message edits and deletes
+      members: null       # Joins, leaves, role changes
+      voice: null         # Voice channel events
+      server: null        # Channel and role changes
+      automod: null       # Automod strikes
+      antinuke: null      # Anti-nuke triggers
+      antiraid: null      # Anti-raid triggers
 
   automod:
     enabled: false
@@ -35,20 +75,7 @@ plugins:
     welcome:
       enabled: false
       channel: null
-      message: "Welcome {user.mention} to {server}!"
-
-  levels:
-    enabled: false
-    xp_per_message: 15
-    xp_cooldown: 60
-    announce_channel: null
-
-  logging:
-    enabled: false
-    channels:
-      moderation: null
-      messages: null
-      members: null
+      message: "Welcome {user.mention} to **{server}**! You are member #{server.member_count}."
 
   escalation:
     enabled: true
@@ -59,6 +86,12 @@ plugins:
           count: 3
           action: mute
           duration: "1h"
+          reason: "3 warnings — auto-muted"
+        - tracked_type: "warn"
+          count: 5
+          action: ban
+          duration: "perm"
+          reason: "5 warnings — permanent ban"
 
   preset_reasons:
     config:
@@ -66,15 +99,24 @@ plugins:
         spam: "Spamming in chat"
         ads: "Advertising without permission"
         toxic: "Toxic behavior towards members"
+        nsfw: "Posting NSFW content outside designated channels"
+        raid: "Raiding the server"
+        evade: "Ban or mute evasion"
 
   command_aliases:
     config:
       aliases:
         b: ban
+        fb: forceban
+        ub: unban
         k: kick
         m: mute
+        fm: forcemute
+        um: unmute
         w: warn
+        fw: forcewarn
         p: purge
+        sm: slowmode
 `;
 
 interface Guild {
@@ -92,14 +134,13 @@ const MOCK_GUILDS: Guild[] = [
   { id: "3", name: "Gaming Hub", icon: null, memberCount: 89, online: 23, cases: 3 },
 ];
 
-function GuildIcon({ guild, size = "md" }: { guild: Guild; size?: "sm" | "md" }) {
-  const sz = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm";
+function GuildIcon({ guild }: { guild: Guild }) {
   if (guild.icon) {
-    return <img src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`} className={`${sz} rounded-full`} alt={guild.name} />;
+    return <img src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`} className="w-10 h-10 rounded-full" alt={guild.name} />;
   }
   const initials = guild.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return (
-    <div className={`${sz} rounded-full bg-indigo-600/50 border border-indigo-500/40 flex items-center justify-center font-bold text-indigo-200`}>
+    <div className="w-10 h-10 rounded-full bg-indigo-600/50 border border-indigo-500/40 flex items-center justify-center text-sm font-bold text-indigo-200">
       {initials}
     </div>
   );
@@ -109,11 +150,6 @@ const GLASS = {
   background: "rgba(255,255,255,0.04)",
   border: "1px solid rgba(255,255,255,0.08)",
   backdropFilter: "blur(12px)",
-};
-
-const GLASS_HOVER = {
-  background: "rgba(255,255,255,0.07)",
-  border: "1px solid rgba(255,255,255,0.14)",
 };
 
 export default function Dashboard() {
@@ -151,18 +187,16 @@ export default function Dashboard() {
               onClick={() => setLocation("/")}
               className="flex items-center gap-2.5 text-white font-bold text-base hover:text-indigo-300 transition-colors"
             >
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(99,102,241,0.3)", border: "1px solid rgba(129,140,248,0.4)" }}>
-                <svg className="w-4 h-4 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                </svg>
+              <div className="w-7 h-7 rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.2)" }}>
+                <img src={`${import.meta.env.BASE_URL}pigeon.jpeg`} alt="Night Pigeon" className="w-full h-full object-cover" />
               </div>
-              ZepBot
+              Night Pigeon
             </button>
             <div className="flex items-center gap-2">
               <button onClick={() => setLocation("/docs")} className="text-sm px-3 py-1.5 rounded-md transition-colors" style={{ color: "rgba(255,255,255,0.5)" }}
-                onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.85)")}
-                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.5)")}>
-                Docs
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.85)")}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)")}>
+                Wikipedia
               </button>
               <div className="flex items-center gap-2 text-sm rounded-md px-3 py-1.5 cursor-pointer" style={{ ...GLASS, color: "rgba(255,255,255,0.7)" }}>
                 <div className="w-5 h-5 rounded-full bg-indigo-500/50 border border-indigo-400/40 flex items-center justify-center text-xs font-bold text-indigo-200">A</div>
@@ -184,8 +218,6 @@ export default function Dashboard() {
                   style={selectedGuild?.id === guild.id
                     ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(129,140,248,0.35)", color: "rgba(255,255,255,0.95)" }
                     : { ...GLASS, color: "rgba(255,255,255,0.65)" }}
-                  onMouseEnter={e => { if (selectedGuild?.id !== guild.id) Object.assign((e.currentTarget as HTMLElement).style, GLASS_HOVER); }}
-                  onMouseLeave={e => { if (selectedGuild?.id !== guild.id) Object.assign((e.currentTarget as HTMLElement).style, GLASS); }}
                 >
                   <GuildIcon guild={guild} />
                   <div className="min-w-0 flex-1">
@@ -193,20 +225,15 @@ export default function Dashboard() {
                     <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>{guild.memberCount?.toLocaleString()} members</div>
                   </div>
                   {guild.cases ? (
-                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.2)", color: "rgba(252,165,165,0.9)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                    <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: "rgba(239,68,68,0.2)", color: "rgba(252,165,165,0.9)", border: "1px solid rgba(239,68,68,0.25)" }}>
                       {guild.cases}
                     </span>
                   ) : null}
                 </button>
               ))}
             </div>
-
             <div className="mt-1">
-              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors"
-                style={{ color: "rgba(255,255,255,0.4)" }}
-                onMouseEnter={e => { Object.assign((e.currentTarget as HTMLElement).style, { ...GLASS_HOVER, color: "rgba(255,255,255,0.7)" }); }}
-                onMouseLeave={e => { Object.assign((e.currentTarget as HTMLElement).style, { background: "transparent", border: "1px solid transparent", color: "rgba(255,255,255,0.4)" }); }}
-              >
+              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" style={{ color: "rgba(255,255,255,0.4)" }}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
@@ -219,10 +246,8 @@ export default function Dashboard() {
             {!selectedGuild ? (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={GLASS}>
-                    <svg className="w-7 h-7" style={{ color: "rgba(255,255,255,0.25)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 12h14M12 5l7 7-7 7" />
-                    </svg>
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden mx-auto mb-4 opacity-40" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <img src={`${import.meta.env.BASE_URL}pigeon.jpeg`} alt="Night Pigeon" className="w-full h-full object-cover" />
                   </div>
                   <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>Select a server to manage its configuration</p>
                 </div>
@@ -269,14 +294,14 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { label: "Total Cases", value: selectedGuild.cases?.toString() ?? "0", icon: "⚖️", color: "rgba(239,68,68,0.15)", border: "rgba(239,68,68,0.2)" },
-                    { label: "Members", value: selectedGuild.memberCount?.toLocaleString() ?? "—", icon: "👥", color: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.2)" },
-                    { label: "Online", value: selectedGuild.online?.toString() ?? "—", icon: "🟢", color: "rgba(34,197,94,0.1)", border: "rgba(34,197,94,0.2)" },
+                    { label: "Total Cases", value: selectedGuild.cases?.toString() ?? "0", icon: "⚖️", bg: "rgba(239,68,68,0.12)", bd: "rgba(239,68,68,0.2)" },
+                    { label: "Members", value: selectedGuild.memberCount?.toLocaleString() ?? "—", icon: "👥", bg: "rgba(59,130,246,0.1)", bd: "rgba(59,130,246,0.2)" },
+                    { label: "Online", value: selectedGuild.online?.toString() ?? "—", icon: "🟢", bg: "rgba(34,197,94,0.08)", bd: "rgba(34,197,94,0.2)" },
                   ].map((s) => (
-                    <div key={s.label} className="rounded-xl px-4 py-3" style={{ background: s.color, border: `1px solid ${s.border}`, backdropFilter: "blur(8px)" }}>
+                    <div key={s.label} className="rounded-xl px-4 py-3" style={{ background: s.bg, border: `1px solid ${s.bd}`, backdropFilter: "blur(8px)" }}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm">{s.icon}</span>
-                        <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>{s.label}</span>
+                        <span className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{s.label}</span>
                       </div>
                       <div className="text-xl font-bold text-white">{s.value}</div>
                     </div>
@@ -284,14 +309,11 @@ export default function Dashboard() {
                 </div>
 
                 {activeTab === "editor" ? (
-                  <div
-                    className="flex-1 rounded-xl overflow-hidden"
-                    style={{ minHeight: 0, height: "calc(100vh - 310px)", border: "1px solid rgba(255,255,255,0.08)" }}
-                  >
+                  <div className="flex-1 rounded-xl overflow-hidden" style={{ minHeight: 0, height: "calc(100vh - 310px)", border: "1px solid rgba(255,255,255,0.08)" }}>
                     <YamlEditor value={yamlValue} onChange={setYamlValue} />
                   </div>
                 ) : (
-                  <PluginGrid yamlValue={yamlValue} onYamlChange={setYamlValue} />
+                  <PluginGrid />
                 )}
               </div>
             )}
@@ -303,38 +325,33 @@ export default function Dashboard() {
 }
 
 const PLUGINS = [
-  { name: "moderation", label: "Moderation", desc: "Kicks, bans, mutes, warns", icon: "🛡️" },
-  { name: "automod", label: "AutoMod", desc: "Spam, invite, word filters", icon: "🤖" },
-  { name: "logging", label: "Logging", desc: "Audit log for all actions", icon: "📋" },
-  { name: "welcome", label: "Welcome", desc: "Welcome & goodbye messages", icon: "👋" },
-  { name: "levels", label: "Levels", desc: "XP and rank system", icon: "⭐" },
-  { name: "tickets", label: "Tickets", desc: "Support ticket system", icon: "🎫" },
-  { name: "starboard", label: "Starboard", desc: "Pin popular messages", icon: "✨" },
-  { name: "antinuke", label: "Anti-Nuke", desc: "Protect from mass actions", icon: "🔒" },
-  { name: "antiraid", label: "Anti-Raid", desc: "Raid detection & lockdown", icon: "🚨" },
-  { name: "escalation", label: "Escalation", desc: "Auto-escalate infractions", icon: "📈" },
-  { name: "reaction_roles", label: "Reaction Roles", desc: "Role assignment panels", icon: "🎭" },
-  { name: "reminders", label: "Reminders", desc: "Personal reminders via DM", icon: "⏰" },
+  { name: "moderation", label: "Moderation", desc: "Kicks, bans, mutes, warns", icon: "🛡️", enabled: true },
+  { name: "automod", label: "AutoMod", desc: "Spam, invite, word filters", icon: "🤖", enabled: false },
+  { name: "logging", label: "Logging", desc: "Audit log for all actions", icon: "📋", enabled: false },
+  { name: "welcome", label: "Welcome", desc: "Welcome & goodbye messages", icon: "👋", enabled: false },
+  { name: "tickets", label: "Tickets", desc: "Support ticket system", icon: "🎫", enabled: true },
+  { name: "starboard", label: "Starboard", desc: "Pin popular messages", icon: "✨", enabled: false },
+  { name: "antinuke", label: "Anti-Nuke", desc: "Protect from mass actions", icon: "🔒", enabled: false },
+  { name: "antiraid", label: "Anti-Raid", desc: "Raid detection & lockdown", icon: "🚨", enabled: false },
+  { name: "escalation", label: "Escalation", desc: "Auto-escalate infractions", icon: "📈", enabled: true },
+  { name: "reaction_roles", label: "Reaction Roles", desc: "Role assignment panels", icon: "🎭", enabled: false },
+  { name: "reminders", label: "Reminders", desc: "Personal reminders via DM", icon: "⏰", enabled: true },
+  { name: "tags", label: "Tags", desc: "Custom text commands", icon: "🏷️", enabled: true },
 ];
 
-function isEnabled(yaml: string, name: string) {
-  const match = yaml.match(new RegExp(`${name}:\\s*\\n\\s+enabled:\\s*(true|false)`));
-  return match?.[1] === "true";
-}
+function PluginGrid() {
+  const [states, setStates] = useState<Record<string, boolean>>(
+    Object.fromEntries(PLUGINS.map((p) => [p.name, p.enabled]))
+  );
 
-function PluginGrid({ yamlValue, onYamlChange }: { yamlValue: string; onYamlChange: (v: string) => void }) {
   return (
     <div className="flex-1 overflow-y-auto grid grid-cols-2 xl:grid-cols-3 gap-3 content-start">
       {PLUGINS.map((p) => {
-        const enabled = isEnabled(yamlValue, p.name);
+        const on = states[p.name];
         return (
-          <div
-            key={p.name}
-            className="rounded-xl p-4 transition-all duration-150"
-            style={enabled
-              ? { background: "rgba(99,102,241,0.12)", border: "1px solid rgba(129,140,248,0.25)", backdropFilter: "blur(8px)" }
-              : { ...GLASS }}
-          >
+          <div key={p.name} className="rounded-xl p-4 transition-all duration-150" style={on
+            ? { background: "rgba(99,102,241,0.12)", border: "1px solid rgba(129,140,248,0.25)", backdropFilter: "blur(8px)" }
+            : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(12px)" }}>
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-start gap-2.5">
                 <span className="text-xl mt-0.5">{p.icon}</span>
@@ -343,10 +360,10 @@ function PluginGrid({ yamlValue, onYamlChange }: { yamlValue: string; onYamlChan
                   <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>{p.desc}</div>
                 </div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
-                <input type="checkbox" className="sr-only peer" checked={enabled} readOnly />
-                <div className="w-9 h-5 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"
-                  style={{ background: enabled ? undefined : "rgba(255,255,255,0.15)" }} />
+              <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5" onClick={() => setStates(s => ({ ...s, [p.name]: !s[p.name] }))}>
+                <div className="w-9 h-5 rounded-full transition-colors" style={{ background: on ? "rgb(99,102,241)" : "rgba(255,255,255,0.15)" }}>
+                  <div className="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all" style={{ left: on ? "20px" : "2px" }} />
+                </div>
               </label>
             </div>
           </div>

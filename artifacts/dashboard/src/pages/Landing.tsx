@@ -78,28 +78,29 @@ export default function Landing() {
       <div className="relative flex flex-col items-center gap-10 px-6 text-center" style={{ zIndex: 2 }}>
         <div className="flex flex-col items-center gap-5">
           <div
-            className="w-20 h-20 rounded-2xl flex items-center justify-center"
+            className="w-24 h-24 rounded-2xl overflow-hidden flex items-center justify-center"
             style={{
-              background: "linear-gradient(135deg, rgba(79,70,229,0.5) 0%, rgba(124,58,237,0.5) 100%)",
-              border: "1px solid rgba(129,140,248,0.4)",
-              boxShadow: "0 0 40px rgba(99,102,241,0.25), 0 0 80px rgba(124,58,237,0.1)",
-              backdropFilter: "blur(12px)",
+              border: "1.5px solid rgba(255,255,255,0.18)",
+              boxShadow: "0 0 40px rgba(99,102,241,0.2), 0 0 80px rgba(124,58,237,0.08)",
+              backdropFilter: "blur(8px)",
             }}
           >
-            <svg className="w-10 h-10 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-            </svg>
+            <img
+              src={`${import.meta.env.BASE_URL}pigeon.jpeg`}
+              alt="Night Pigeon"
+              className="w-full h-full object-cover"
+            />
           </div>
 
           <div>
             <h1
               className="text-6xl font-bold text-white tracking-tight"
               style={{
-                textShadow: "0 0 60px rgba(129,140,248,0.35), 0 2px 12px rgba(0,0,0,0.6)",
+                textShadow: "0 0 60px rgba(129,140,248,0.3), 0 2px 12px rgba(0,0,0,0.6)",
                 letterSpacing: "-0.02em",
               }}
             >
-              ZepBot
+              Night Pigeon
             </h1>
             <p
               className="text-lg mt-3 max-w-sm font-light"
@@ -150,7 +151,7 @@ export default function Landing() {
               (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.25)";
             }}
           >
-            Documentation
+            Wikipedia
           </button>
         </div>
 
