@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import ssl as ssl_lib
 from pathlib import Path
 
 import asyncpg
@@ -26,7 +27,12 @@ class ZepBot(commands.Bot):
         self.owner_id = int(os.getenv("BOT_OWNER_ID", 0))
 
     async def setup_hook(self):
-        self.pool = await asyncpg.create_pool(os.getenv("DATABASE_URL"), min_size=2, max_size=10)
+        ssl_ctx = None
+        if os.getenv("DB_SSL") == "true":
+            ssl_ctx = ssl_lib.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl_lib.CERT_NONE
+        self.pool = await asyncpg.create_pool(os.getenv("DATABASE_URL"), min_size=2, max_size=10, ssl=ssl_ctx)
         self.config_loader = ConfigLoader(self.pool)
 
         for plugin_file in sorted(PLUGIN_DIR.glob("*.py")):
