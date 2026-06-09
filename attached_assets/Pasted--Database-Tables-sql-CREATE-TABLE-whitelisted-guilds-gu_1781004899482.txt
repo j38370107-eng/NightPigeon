@@ -1,0 +1,2063 @@
+---
+
+## Database Tables
+
+```sql
+CREATE TABLE whitelisted_guilds (
+  guild_id BIGINT PRIMARY KEY,
+  guild_owner_id BIGINT,
+  whitelisted_by BIGINT,
+  whitelisted_at TIMESTAMP DEFAULT NOW(),
+  guild_name TEXT,
+  notes TEXT
+);
+
+CREATE TABLE config_access (
+  guild_id BIGINT,
+  user_id BIGINT,
+  granted_by BIGINT,
+  granted_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE guild_configs (
+  guild_id BIGINT PRIMARY KEY,
+  config TEXT
+);
+
+CREATE TABLE cases (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  user_id BIGINT,
+  moderator_id BIGINT,
+  action TEXT,
+  reason TEXT,
+  duration TEXT,
+  expires_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE mutes (
+  guild_id BIGINT,
+  user_id BIGINT,
+  expires_at TIMESTAMP,
+  removed_roles BIGINT[],
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE temp_bans (
+  guild_id BIGINT,
+  user_id BIGINT,
+  expires_at TIMESTAMP,
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE tags (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  name TEXT,
+  content TEXT
+);
+
+CREATE TABLE reminders (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  user_id BIGINT,
+  channel_id BIGINT,
+  message TEXT,
+  remind_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE raid_events (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  triggered_at TIMESTAMP DEFAULT NOW(),
+  action_taken TEXT,
+  members_affected BIGINT[]
+);
+
+CREATE TABLE temp_roles (
+  guild_id BIGINT,
+  user_id BIGINT,
+  role_id BIGINT,
+  expires_at TIMESTAMP,
+  PRIMARY KEY (guild_id, user_id, role_id)
+);
+
+CREATE TABLE starboard_messages (
+  guild_id BIGINT,
+  message_id BIGINT,
+  starboard_message_id BIGINT,
+  channel_id BIGINT,
+  author_id BIGINT,
+  star_count INT DEFAULT 0,
+  posted_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (guild_id, message_id)
+);
+
+CREATE TABLE ticket_panels (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  channel_id BIGINT,
+  message_id BIGINT,
+  panel_name TEXT,
+  panel_type TEXT,
+  description TEXT,
+  category_id BIGINT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE ticket_categories (
+  id SERIAL PRIMARY KEY,
+  panel_id INT REFERENCES ticket_panels(id) ON DELETE CASCADE,
+  guild_id BIGINT,
+  label TEXT,
+  description TEXT,
+  emoji TEXT,
+  support_roles BIGINT[],
+  ping_roles BIGINT[],
+  welcome_message TEXT,
+  name_format TEXT
+);
+
+CREATE TABLE tickets (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  channel_id BIGINT,
+  user_id BIGINT,
+  claimed_by BIGINT,
+  panel_id INT,
+  category_id INT,
+  status TEXT DEFAULT 'open',
+  ticket_number INT,
+  opened_at TIMESTAMP DEFAULT NOW(),
+  closed_at TIMESTAMP,
+  deleted_at TIMESTAMP
+);
+
+CREATE TABLE ticket_blacklist (
+  guild_id BIGINT,
+  user_id BIGINT,
+  reason TEXT,
+  moderator_id BIGINT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE ticket_participants (
+  ticket_id INT REFERENCES tickets(id) ON DELETE CASCADE,
+  user_id BIGINT,
+  added_by BIGINT,
+  added_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (ticket_id, user_id)
+);
+
+CREATE TABLE reaction_role_panels (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  channel_id BIGINT,
+  message_id BIGINT,
+  panel_name TEXT,
+  panel_type TEXT,
+  description TEXT,
+  max_roles INT DEFAULT 0,
+  required_role BIGINT,
+  remove_on_reselect BOOL DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE reaction_role_entries (
+  id SERIAL PRIMARY KEY,
+  panel_id INT REFERENCES reaction_role_panels(id) ON DELETE CASCADE,
+  guild_id BIGINT,
+  role_id BIGINT,
+  emoji TEXT,
+  label TEXT,
+  description TEXT,
+  style TEXT DEFAULT 'secondary',
+  position INT DEFAULT 0
+);
+
+CREATE TABLE auto_replies (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  trigger TEXT,
+  response TEXT,
+  trigger_type TEXT DEFAULT 'contains',
+  match_case BOOL DEFAULT false,
+  reply_type TEXT DEFAULT 'message',
+  delete_trigger BOOL DEFAULT false,
+  delete_after INT DEFAULT null,
+  ignore_roles BIGINT[],
+  ignore_channels BIGINT[],
+  only_channels BIGINT[],
+  only_roles BIGINT[],
+  cooldown_seconds INT DEFAULT 0,
+  enabled BOOL DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE auto_reactions (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  trigger TEXT,
+  emojis TEXT[],
+  trigger_type TEXT DEFAULT 'contains',
+  match_case BOOL DEFAULT false,
+  ignore_roles BIGINT[],
+  ignore_channels BIGINT[],
+  only_channels BIGINT[],
+  only_roles BIGINT[],
+  cooldown_seconds INT DEFAULT 0,
+  enabled BOOL DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE autoclean_channels (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  channel_id BIGINT,
+  mode TEXT,
+  interval_seconds INT,
+  keep_count INT,
+  max_age_seconds INT,
+  delay_seconds INT DEFAULT 0,
+  ignore_pinned BOOL DEFAULT true,
+  ignore_roles BIGINT[],
+  ignore_bots BOOL DEFAULT false,
+  enabled BOOL DEFAULT true,
+  last_run TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE user_timezones (
+  user_id BIGINT PRIMARY KEY,
+  timezone TEXT
+);
+
+CREATE TABLE locked_channels (
+  guild_id BIGINT,
+  channel_id BIGINT,
+  locked_by BIGINT,
+  reason TEXT,
+  original_permissions JSONB,
+  locked_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (guild_id, channel_id)
+);
+
+CREATE TABLE nick_locks (
+  guild_id BIGINT,
+  user_id BIGINT,
+  locked_nick TEXT,
+  locked_by BIGINT,
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE watchlist (
+  guild_id BIGINT,
+  user_id BIGINT,
+  reason TEXT,
+  added_by BIGINT,
+  added_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE automod_immune (
+  guild_id BIGINT,
+  user_id BIGINT,
+  added_by BIGINT,
+  added_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE ignored_users (
+  guild_id BIGINT,
+  user_id BIGINT,
+  expires_at TIMESTAMP,
+  added_by BIGINT,
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE seen (
+  guild_id BIGINT,
+  user_id BIGINT,
+  last_seen TIMESTAMP,
+  last_channel_id BIGINT,
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE history_events (
+  id SERIAL PRIMARY KEY,
+  guild_id BIGINT,
+  user_id BIGINT,
+  event_type TEXT,
+  description TEXT,
+  moderator_id BIGINT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE duration_role_assignments (
+  guild_id BIGINT,
+  user_id BIGINT,
+  role_id BIGINT,
+  assigned_at TIMESTAMP DEFAULT NOW(),
+  expires_at TIMESTAMP,
+  PRIMARY KEY (guild_id, user_id, role_id)
+);
+
+CREATE TABLE role_bans (
+  guild_id BIGINT,
+  user_id BIGINT,
+  role_id BIGINT,
+  reason TEXT,
+  moderator_id BIGINT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id, role_id)
+);
+```
+
+---
+
+## main.py
+
+- Connects to PostgreSQL on startup using asyncpg
+- Loads all plugins dynamically from plugins/ folder
+- Registers global check: if guild not whitelisted silently ignore all commands
+- On startup checks all current guilds against whitelist, leaves non-whitelisted
+- On on_guild_join checks whitelist, leaves if not whitelisted, DMs server owner and notifies bot owner
+- on_message: resolves aliases from YAML before command dispatch
+- Starts all background tasks on ready
+- Re-registers all persistent views (reaction roles, tickets) on startup using stored message IDs
+
+---
+
+## config_loader.py
+
+- Loads guild YAML config from guild_configs table
+- Caches configs in memory with 60 second TTL
+- Returns parsed dict
+- Falls back to default config if none set
+
+---
+
+## duration_parser.py
+
+Parse duration strings: 10m, 1h, 1d, 1w, 2d12h, perm
+MAX_DURATION_DAYS = 180
+Cap all durations at 180 days.
+If capped, note it in the response.
+Returns (timedelta or None, human_readable_string, capped bool)
+
+---
+
+## message_formatter.py
+
+Every bot response goes through this.
+Three formats supported:
+1. Plain string
+2. Embed only
+3. Content + embed combo
+
+Default is always plain text.
+Embeds opt-in via YAML only.
+
+Template variables supported everywhere:
+{user} {user.mention} {user.id} {user.name} {user.avatar} {user.created_at} {user.joined_at}
+{mod} {mod.mention} {mod.id} {mod.name}
+{server} {server.id} {server.icon} {server.member_count}
+{reason} {duration} {case_id} {action} {channel} {channel.mention} {count} {expires_at}
+{new_reason} {new_duration} {case_type} {trigger} {rule}
+{timestamp} {timestamp.date} {timestamp.time}
+{success_count} {fail_count} {total}
+{reminder_message} {reminder_set_at} {ordinal}
+
+Missing variables fall back to N/A.
+Colors support hex strings "#FF0000".
+
+Default punishment channel reply:
+"{user} has been {action} | Case: {case_id}"
+
+Default punishment DM:
+"You have been {action} in {server} for the following reason: {reason}"
+
+Ban and mute DMs:
+"You have been {action} in {server} for the following reason: {reason} | Duration: {duration}"
+
+---
+
+## Whitelist System
+
+Only whitelisted servers can use the bot.
+On startup: check all guilds, leave any not in whitelisted_guilds.
+On guild join: check whitelist, leave if not whitelisted.
+Non-whitelisted servers: bot silently ignores all commands.
+Bot owner bypasses everything always.
+
+---
+
+## Config Access System
+
+Three tiers:
+1. BOT_OWNER_ID — full access everything
+2. guild_owner_id from whitelisted_guilds — setconfig/getconfig/resetconfig/configaccess for their server
+3. config_access table users — setconfig/getconfig for their server only
+
+Commands:
+- !setconfig — paste YAML block, bot validates and saves
+- !getconfig — DMs current raw YAML
+- !resetconfig — resets to default YAML
+- !configaccess add @user — whitelisted owner only
+- !configaccess remove @user — whitelisted owner only
+- !configaccess list — whitelisted owner only
+
+---
+
+## Alias System
+
+Defined in YAML only under plugins.command_aliases.config.aliases
+Resolved in on_message before command dispatch.
+Real command name used for level checks.
+
+```yaml
+plugins:
+  command_aliases:
+    config:
+      aliases:
+        "b": "ban"
+        "fb": "forceban"
+        "ub": "unban"
+        "k": "kick"
+        "m": "mute"
+        "fm": "forcemute"
+        "um": "unmute"
+        "fum": "forceunmute"
+        "w": "warn"
+        "fw": "forcewarn"
+        "p": "purge"
+        "sm": "slowmode"
+        "ac": "addcase"
+        "ec": "editcase"
+        "dc": "deletecase"
+        "sc": "servercases"
+        "mw": "masswarn"
+        "mm": "massmute"
+        "mk": "masskick"
+        "mb": "massban"
+        "mub": "massunban"
+        "r": "reason"
+        "l": "level"
+```
+
+---
+
+## Preset Reasons System
+
+Defined in YAML only under plugins.preset_reasons.config.presets
+Resolved inside every mod command before executing.
+
+```yaml
+plugins:
+  preset_reasons:
+    config:
+      presets:
+        "spam": "Spamming in chat"
+        "ads": "Advertising without permission"
+        "toxic": "Toxic behavior towards members"
+        "nsfw": "Posting NSFW content outside designated channels"
+        "raid": "Raiding the server"
+        "slurs": "Using slurs or hate speech"
+        "threats": "Threatening other members"
+        "dox": "Doxxing or sharing personal information"
+        "impersonation": "Impersonating staff or other members"
+        "evade": "Ban or mute evasion"
+```
+
+---
+
+## Levels System
+
+Levels 1-100. Bot owner always 1000.
+Defined in YAML under levels.users (user IDs) and levels.roles (role IDs).
+Highest level wins.
+Every command checks level silently before executing.
+No error message if level too low, just silent ignore.
+
+Commands:
+- !level [@user] — shows level, level 0
+- !levels — lists all assignments, level 100
+- !levelset — shows what level a user would be, level 100
+
+```yaml
+levels:
+  users:
+    "user_id": 100
+  roles:
+    "role_id": 50
+  commands:
+    ban: 50
+    forceban: 75
+    unban: 50
+    kick: 25
+    mute: 25
+    forcemute: 75
+    unmute: 25
+    forceunmute: 75
+    warn: 25
+    forcewarn: 25
+    addcase: 25
+    editcase: 50
+    deletecase: 75
+    purge: 25
+    slowmode: 25
+    masswarn: 75
+    massmute: 75
+    masskick: 75
+    massban: 100
+    massunban: 75
+    massforcewarn: 75
+    massforcemute: 75
+    massforcekick: 75
+    massforceban: 100
+    case: 25
+    cases: 25
+    servercases: 25
+    note: 25
+    viewnote: 25
+    viewnotes: 25
+    deletenote: 50
+    notesearch: 25
+    editnote: 50
+    addrole: 50
+    removerole: 50
+    temprole: 50
+    temproles: 25
+    tag: 0
+    remind: 0
+    reminders: 0
+    delreminder: 0
+    raidmode: 100
+    lockdown: 50
+    unlock: 50
+    modnick: 25
+    history: 25
+    watch: 50
+    unwatch: 50
+    watchlist: 25
+    immune: 75
+    unimmune: 75
+    immunelist: 25
+    roleban: 75
+    unroleban: 75
+    rolebanned: 25
+    nick: 50
+    forcenick: 75
+    resetnick: 50
+    forceresetnick: 75
+    locknick: 75
+    unlocknick: 75
+    seen: 25
+    cleanup: 50
+    rr: 100
+    ticket: 0
+    ticket_close: 0
+    ticket_claim: 25
+    ticket_delete: 75
+    ticket_adduser: 25
+    ticket_removeuser: 25
+    ticket_blacklist: 50
+    ticket_unblacklist: 50
+    ticket_panel: 100
+    starboard: 0
+    timezone: 0
+    time: 0
+    timefor: 0
+    timeconvert: 0
+    autoreply: 50
+    autoreaction: 50
+    autoclean: 100
+    slowmode_auto: 100
+    welcome_test: 100
+    configaccess: 100
+    level: 0
+    levels: 100
+    levelset: 100
+    userinfo: 0
+    avatar: 0
+    banner: 0
+    roles: 0
+    joined: 0
+    firstmsg: 25
+    bansearch: 25
+    casesearch: 25
+    warncount: 25
+    modstats: 25
+    serverinfo: 0
+    channelinfo: 0
+    roleinfo: 0
+    membercount: 0
+    botstats: 0
+    botinfo: 0
+    inviteinfo: 25
+    snowflake: 0
+    permissions: 0
+    inrole: 25
+    charcount: 0
+    embed: 50
+    help: 0
+```
+
+---
+
+## plugins/moderation.py
+
+Every command:
+- Resolves preset reasons first
+- Checks level system silently
+- Duration cap 180 days
+- Creates case where applicable
+- DMs user if dm_on_action true
+- Posts channel response using YAML message template or plain text default
+- Logs to logging channel
+- Triggers escalation check after execution
+- Every response fully customizable in YAML
+- Every DM fully customizable in YAML
+- Every error fully customizable in YAML
+- Every log message fully customizable in YAML
+- Force commands take raw user ID, work without user in server, DM failures silent
+
+Commands:
+
+BAN SYSTEM
+- !ban @user [duration] [reason]
+- !forceban <user_id> [duration] [reason]
+- !unban <user_id> [reason]
+- !tempban @user <duration> [reason]
+- !baninfo <user_id>
+- !banlist
+- !softban @user [reason]
+
+KICK
+- !kick @user [reason]
+
+MUTE
+- !mute @user [duration] [reason]
+  Assigns mute_role from config
+  If mute_remove_roles true: saves all non-managed roles to mutes.removed_roles and removes them
+  Stores expiry in mutes table
+  DMs mute_dm if dm_on_action true
+- !forcemute <user_id> [duration] [reason]
+- !unmute @user [reason]
+  Removes mute_role
+  If mute_remove_roles true: restores saved roles from mutes.removed_roles
+- !forceunmute <user_id> [reason]
+- !tempmute @user <duration> [reason]
+- !mutelist
+- !muteinfo @user
+
+WARN
+- !warn @user [reason]
+- !forcewarn <user_id> [reason]
+
+PURGE
+- !purge <amount>
+- !purge @user <amount>
+- !purge bots <amount>
+- !purge embeds <amount>
+- !purge images <amount>
+- !purge links <amount>
+- !purge contains <text> <amount>
+- !purge before <message_id>
+- !purge after <message_id>
+- !purge between <message_id> <message_id>
+- !purge pins
+- !purge reactions <message_id>
+
+SLOWMODE
+- !slowmode <seconds> [#channel]
+- !slowmode off [#channel]
+- !slowmodeinfo [#channel]
+
+NICKNAME
+- !nick @user <nickname>
+- !forcenick <user_id> <nickname>
+- !resetnick @user
+- !forceresetnick <user_id>
+- !locknick @user
+- !unlocknick @user
+
+On on_member_update: if user has nick lock, revert nickname change automatically
+
+WATCHLIST
+- !watch @user [reason]
+- !forcewatch <user_id> [reason]
+- !unwatch @user
+- !forceunwatch <user_id>
+- !watchlist
+
+Watched users get extra logging on all their actions.
+
+IMMUNE
+- !immune @user
+- !unimmune @user
+- !immunelist
+
+Immune users skip all automod checks.
+
+ROLE ACTIONS
+- !roleban @user <@role> [reason]
+- !unroleban @user <@role>
+- !rolebanned @user
+
+On on_member_update: if user gets role they are rolebanned from, remove it automatically
+
+CHANNEL
+- !lock [#channel] [reason]
+- !unlock [#channel] [reason]
+- !hide [#channel] [reason]
+- !unhide [#channel] [reason]
+- !nuke [#channel] [reason]
+
+MISC
+- !seen @user
+- !cleanup <amount>
+
+YAML config for moderation plugin:
+
+```yaml
+plugins:
+  moderation:
+    enabled: true
+    mute_role: null
+    dm_on_action: true
+    mute_remove_roles: false
+    mute_dm_time_updates: false
+    ban_delete_message_days: 1
+
+    messages:
+      ban_success: "{user} has been banned | Case: {case_id}"
+      forceban_success: "{user.id} has been banned | Case: {case_id}"
+      unban_success: "{user} has been unbanned | Case: {case_id}"
+      tempban_success: "{user} has been temp banned | Duration: {duration} | Case: {case_id}"
+      softban_success: "{user} has been softbanned | Case: {case_id}"
+      kick_success: "{user} has been kicked | Case: {case_id}"
+      mute_success: "{user} has been muted | Duration: {duration} | Case: {case_id}"
+      forcemute_success: "{user.id} has been muted | Duration: {duration} | Case: {case_id}"
+      unmute_success: "{user} has been unmuted | Case: {case_id}"
+      forceunmute_success: "{user.id} has been unmuted | Case: {case_id}"
+      warn_success: "{user} has been warned | Case: {case_id}"
+      forcewarn_success: "{user.id} has been warned | Case: {case_id}"
+      addcase_success: "{case_type} case added for {user} silently | Case: {case_id}"
+      editcase_success: "Case {case_id} has been updated"
+      purge_success: "{count} messages deleted"
+      slowmode_success: "Slowmode set to {count}s in {channel.mention}"
+      slowmode_off: "Slowmode removed in {channel.mention}"
+      nick_success: "{user}'s nickname set to {trigger}"
+      forcenick_success: "{user.id} nickname set to {trigger}"
+      resetnick_success: "{user}'s nickname has been reset"
+      locknick_success: "{user}'s nickname has been locked"
+      unlocknick_success: "{user}'s nickname lock removed"
+      lock_success: "{channel.mention} has been locked | Reason: {reason}"
+      unlock_success: "{channel.mention} has been unlocked"
+      hide_success: "{channel.mention} has been hidden"
+      unhide_success: "{channel.mention} is now visible"
+      nuke_success: "Channel nuked"
+      watch_success: "{user} added to watchlist"
+      unwatch_success: "{user} removed from watchlist"
+      watchlist_empty: "No users on watchlist"
+      immune_success: "{user} is now immune to automod"
+      unimmune_success: "{user}'s automod immunity removed"
+      immunelist_empty: "No automod immune users"
+      roleban_success: "{user} banned from {trigger}"
+      unroleban_success: "{user}'s role ban for {trigger} removed"
+      seen_never: "{user} has never been seen"
+      seen_result: "{user} was last seen {trigger} in {channel}"
+      cleanup_success: "Deleted {count} bot messages"
+      banlist_empty: "No bans found"
+      mutelist_empty: "No users currently muted"
+
+      ban_dm: "You have been banned in {server} for the following reason: {reason} | Duration: {duration}"
+      forceban_dm: "You have been banned in {server} for the following reason: {reason} | Duration: {duration}"
+      softban_dm: "You have been softbanned in {server} for the following reason: {reason}"
+      kick_dm: "You have been kicked in {server} for the following reason: {reason}"
+      mute_dm: "You have been muted in {server} for the following reason: {reason} | Duration: {duration}"
+      unmute_dm: "You have been unmuted in {server}"
+      warn_dm: "You have been warned in {server} for the following reason: {reason}"
+      mute_time_update_dm: "Your mute in {server} has been updated | New Duration: {new_duration} | Expires: {expires_at}"
+
+      error_no_permission: "You don't have permission to use this command"
+      error_user_not_found: "User not found"
+      error_already_muted: "{user} is already muted"
+      error_not_muted: "{user} is not muted"
+      error_cannot_action_self: "You cannot {action} yourself"
+      error_cannot_action_bot: "You cannot {action} the bot"
+      error_hierarchy: "You cannot {action} someone with a higher or equal role"
+      error_already_banned: "{user.id} is already banned"
+      error_not_banned: "{user} is not banned"
+      error_invalid_duration: "Invalid duration. Use: 10m, 1h, 1d, 1w, perm"
+      error_duration_capped: "Duration capped at 180 days"
+```
+
+---
+
+## plugins/mass_actions.py
+
+All mass actions use | as separator between targets and reason.
+Max targets from config default 20.
+Each applies action individually.
+Creates individual cases per user.
+Posts single summary response at end.
+All responses fully customizable in YAML.
+
+Commands:
+- !masswarn @user1 @user2 ... | [reason]
+- !massforcewarn <id1> <id2> ... | [reason]
+- !massmute @user1 @user2 ... [duration] | [reason]
+- !massforcemute <id1> <id2> ... [duration] | [reason]
+- !masskick @user1 @user2 ... | [reason]
+- !massforcekick <id1> <id2> ... | [reason]
+- !massban @user1 @user2 ... [duration] | [reason]
+- !massforceban <id1> <id2> ... [duration] | [reason]
+- !massunban <id1> <id2> ... | [reason]
+- !massunmute @user1 @user2 ... | [reason]
+
+YAML config:
+```yaml
+plugins:
+  mass_actions:
+    enabled: true
+    max_targets: 20
+    messages:
+      masswarn_success: "{success_count}/{total} users warned | Failed: {fail_count}"
+      massmute_success: "{success_count}/{total} users muted | Failed: {fail_count}"
+      masskick_success: "{success_count}/{total} users kicked | Failed: {fail_count}"
+      massban_success: "{success_count}/{total} users banned | Failed: {fail_count}"
+      massunban_success: "{success_count}/{total} users unbanned | Failed: {fail_count}"
+      massunmute_success: "{success_count}/{total} users unmuted | Failed: {fail_count}"
+      massforcewarn_success: "{success_count}/{total} users forcewarned | Failed: {fail_count}"
+      massforcemute_success: "{success_count}/{total} users forcemuted | Failed: {fail_count}"
+      massforcekick_success: "{success_count}/{total} users forcekicked | Failed: {fail_count}"
+      massforceban_success: "{success_count}/{total} users forcebanned | Failed: {fail_count}"
+      error_too_many_targets: "Max {count} users per mass action"
+      error_no_targets: "No valid targets provided"
+```
+
+---
+
+## plugins/cases.py
+
+All responses fully customizable in YAML.
+
+Commands:
+- !case <case_id>
+- !cases @user
+- !servercases
+- !deletecase <case_id>
+- !reason <case_id> <new_reason>
+- !editcase <case_id> reason <new_reason>
+- !editcase <case_id> duration <new_duration>
+- !addcase @user <type> [reason]
+- !forceaddcase <user_id> <type> [reason]
+- !casecount @user
+- !exportcases @user
+- !note @user <text>
+- !forcenote <user_id> <text>
+- !viewnote <case_id>
+- !viewnotes @user
+- !deletenote <case_id>
+- !notesearch <keyword>
+- !editnote <case_id> <new text>
+
+Notes are stored in cases table with action type "note".
+Notes never DM the user regardless of dm_on_action.
+
+YAML config:
+```yaml
+plugins:
+  cases:
+    enabled: true
+    messages:
+      case_not_found: "Case {trigger} not found"
+      no_cases: "No cases found for {user}"
+      no_server_cases: "No cases issued yet"
+      case_deleted: "Case {trigger} deleted"
+      case_edited: "Case {case_id} updated"
+      addcase_success: "{case_type} case added for {user} silently | Case: {case_id}"
+      forceaddcase_success: "{case_type} case added for {user.id} silently | Case: {case_id}"
+      casecount: "{user} has {count} total cases"
+      note_success: "Note added for {user} | Case: {case_id}"
+      forcenote_success: "Note added for {user.id} | Case: {case_id}"
+      note_deleted: "Note {case_id} deleted"
+      note_not_found: "Note {case_id} not found"
+      note_edited: "Note {case_id} updated"
+      note_search_none: "No notes found matching {trigger}"
+      error_no_permission: "You don't have permission to manage cases"
+```
+
+---
+
+## plugins/logging.py
+
+Logs every Discord event to configured channels.
+Separate optional channels per category.
+Falls back to main logging channel.
+All log messages fully customizable in YAML.
+Expose log_action(guild, event_name, **vars) helper.
+
+Events:
+message_delete, message_edit, message_bulk_delete,
+member_join, member_leave, member_ban, member_unban,
+role_added, role_removed, nickname_change,
+voice_join, voice_leave, voice_move,
+channel_create, channel_delete, channel_update,
+role_create, role_delete, role_update,
+server_update, invite_create, invite_delete, emoji_update,
+mod_action, automod actions, antinuke actions, antiraid actions
+
+YAML config:
+```yaml
+plugins:
+  logging:
+    enabled: true
+    channel: null
+    channels:
+      moderation: null
+      messages: null
+      members: null
+      voice: null
+      server: null
+      automod: null
+      antinuke: null
+      antiraid: null
+    messages:
+      message_delete: "Message deleted by {user} in {channel} | Content: {trigger}"
+      message_edit: "{user} edited a message in {channel} | Before: {trigger} | After: {reason}"
+      message_bulk_delete: "{count} messages deleted in {channel}"
+      member_join: "{user} joined | Account created: {user.created_at} | Members: {server.member_count}"
+      member_leave: "{user} left | Joined: {user.joined_at}"
+      member_ban: "{user} was banned"
+      member_unban: "{user} was unbanned"
+      role_added: "{user} was given {trigger}"
+      role_removed: "{user} lost {trigger}"
+      nickname_change: "{user} changed nickname | Before: {trigger} | After: {reason}"
+      voice_join: "{user} joined {channel}"
+      voice_leave: "{user} left {channel}"
+      voice_move: "{user} moved from {trigger} to {reason}"
+      channel_create: "{channel} was created"
+      channel_delete: "{trigger} was deleted"
+      channel_update: "{channel} was updated"
+      role_create: "{trigger} role was created"
+      role_delete: "{trigger} role was deleted"
+      role_update: "{trigger} role was updated"
+      server_update: "Server settings were updated"
+      invite_create: "{user} created an invite for {channel}"
+      invite_delete: "An invite for {channel} was deleted"
+      emoji_update: "Server emojis were updated"
+      mod_action: "{mod} {action}d {user} | Reason: {reason} | Duration: {duration} | Case: {case_id}"
+```
+
+---
+
+## plugins/automod.py
+
+15 rules. All responses fully customizable in YAML.
+Each rule has: enabled, ignore_roles, ignore_channels, action,
+channel_response, user_dm, log_response.
+All rules check automod_immune and ignored_users tables before firing.
+All rules create cases and trigger automod escalation.
+
+Rules:
+1. spam
+2. bad_words
+3. invite_links
+4. mass_mentions
+5. caps_spam (ignore_short_words, ignore_emojis options)
+6. link_spam
+7. repeated_text (difflib similarity ratio)
+8. mass_emojis
+9. zalgo
+10. newline_spam
+11. mentionspam (ghost ping tracking)
+12. links (domain whitelist/blacklist/phishing/shortlink expansion)
+13. wordfilter (wildcards/regex/l33tspeak normalization)
+14. alts (account age + join timing)
+15. phishing (fake nitro/IP links/lookalike domains)
+
+Default DM for all automod actions:
+"You have been {action}d in {server} for the following reason: {reason}"
+
+YAML config:
+```yaml
+plugins:
+  automod:
+    enabled: true
+    spam:
+      enabled: false
+      max_messages: 5
+      interval_seconds: 5
+      action: mute
+      mute_duration_minutes: 10
+      ignore_roles: []
+      ignore_channels: []
+      messages:
+        channel_response: "Automod: {user.mention} was {action}d for spamming"
+        user_dm: "You have been {action}d in {server} for the following reason: spamming"
+        log_response: "Automod | spam | {user} ({user.id}) | {channel} | {trigger}"
+    bad_words:
+      enabled: false
+      words: []
+      action: delete
+      ignore_roles: []
+      ignore_channels: []
+      messages:
+        channel_response: "Automod: {user.mention}'s message was removed"
+        user_dm: "You have been {action}d in {server} for the following reason: prohibited word"
+        log_response: "Automod | bad_words | {user} ({user.id}) | {channel} | {trigger}"
+    invite_links:
+      enabled: false
+      action: delete
+      ignore_roles: []
+      messages:
+        channel_response: "Automod: {user.mention} invites are not allowed"
+        user_dm: "You have been {action}d in {server} for the following reason: invite link"
+        log_response: "Automod | invite_links | {user} ({user.id}) | {channel}"
+    mass_mentions:
+      enabled: false
+      max_mentions: 5
+      action: mute
+      mute_duration_minutes: 5
+      messages:
+        channel_response: "Automod: {user.mention} was {action}d for mass mentions"
+        user_dm: "You have been {action}d in {server} for the following reason: mass mentions"
+        log_response: "Automod | mass_mentions | {user} ({user.id}) | {channel} | {trigger} mentions"
+    caps_spam:
+      enabled: false
+      min_length: 10
+      caps_percentage: 70
+      ignore_short_words: true
+      ignore_emojis: true
+      action: delete
+      messages:
+        channel_response: "Automod: {user.mention} please avoid excessive caps"
+        user_dm: "You have been {action}d in {server} for the following reason: excessive caps"
+        log_response: "Automod | caps_spam | {user} ({user.id}) | {channel}"
+    link_spam:
+      enabled: false
+      max_links: 3
+      interval_seconds: 10
+      action: mute
+      ignore_roles: []
+      messages:
+        channel_response: "Automod: {user.mention} was {action}d for link spam"
+        user_dm: "You have been {action}d in {server} for the following reason: link spam"
+        log_response: "Automod | link_spam | {user} ({user.id}) | {channel}"
+    repeated_text:
+      enabled: false
+      threshold: 0.85
+      action: delete
+      messages:
+        channel_response: "Automod: {user.mention} please do not repeat yourself"
+        user_dm: "You have been {action}d in {server} for the following reason: repeated text"
+        log_response: "Automod | repeated_text | {user} ({user.id}) | {channel}"
+    mass_emojis:
+      enabled: false
+      max_emojis: 10
+      action: delete
+      messages:
+        channel_response: "Automod: {user.mention} please avoid emoji spam"
+        user_dm: "You have been {action}d in {server} for the following reason: emoji spam"
+        log_response: "Automod | mass_emojis | {user} ({user.id}) | {channel}"
+    zalgo:
+      enabled: false
+      action: delete
+      messages:
+        channel_response: "Automod: {user.mention}'s message was removed"
+        user_dm: "You have been {action}d in {server} for the following reason: zalgo text"
+        log_response: "Automod | zalgo | {user} ({user.id}) | {channel}"
+    newline_spam:
+      enabled: false
+      max_newlines: 10
+      action: delete
+      messages:
+        channel_response: "Automod: {user.mention} please avoid excessive line breaks"
+        user_dm: "You have been {action}d in {server} for the following reason: newline spam"
+        log_response: "Automod | newline_spam | {user} ({user.id}) | {channel}"
+    mentionspam:
+      enabled: false
+      max_mentions_per_message: 5
+      track_ghost_pings: true
+      ghost_ping_window_seconds: 10
+      action: warn
+      messages:
+        channel_response: "Automod: {user.mention} was {action}d for mention spam"
+        user_dm: "You have been {action}d in {server} for the following reason: mention spam"
+        log_response: "Automod | mentionspam | {user} ({user.id}) | {channel} | {trigger}"
+        ghost_ping_log: "Ghost ping | {user} ({user.id}) | Mentioned: {trigger} | {channel}"
+    links:
+      enabled: false
+      expand_shortlinks: true
+      block_all_links: false
+      whitelist_domains: []
+      blacklist_domains: []
+      phishing_protection: true
+      ignore_roles: []
+      ignore_channels: []
+      action: delete
+      messages:
+        channel_response: "Automod: {user.mention}'s message was removed for a blocked link"
+        user_dm: "You have been {action}d in {server} for the following reason: blocked link"
+        log_response: "Automod | links | {user} ({user.id}) | {channel} | {trigger}"
+    wordfilter:
+      enabled: false
+      words: []
+      action: delete
+      ignore_roles: []
+      ignore_channels: []
+      normalize_map:
+        "0": "o"
+        "1": "i"
+        "3": "e"
+        "4": "a"
+        "5": "s"
+        "7": "t"
+        "@": "a"
+        "$": "s"
+        "!": "i"
+      messages:
+        channel_response: "Automod: {user.mention}'s message was removed"
+        user_dm: "You have been {action}d in {server} for the following reason: prohibited word"
+        log_response: "Automod | wordfilter | {user} ({user.id}) | {channel} | {trigger}"
+    alts:
+      enabled: false
+      min_account_age_days: 30
+      join_timing_window_seconds: 60
+      action: kick
+      messages:
+        channel_response: null
+        user_dm: "You have been {action}d in {server} for the following reason: suspected alt account"
+        log_response: "Automod | alts | {user} ({user.id}) | Account age: {trigger} days"
+    phishing:
+      enabled: false
+      action: ban
+      duration: "perm"
+      check_links: true
+      check_fake_nitro: true
+      check_ip_links: true
+      check_lookalike_domains: true
+      ignore_roles: []
+      ignore_channels: []
+      messages:
+        channel_response: "Automod: {user.mention} was {action}d for phishing"
+        user_dm: "You have been {action}d in {server} for the following reason: phishing link"
+        log_response: "Automod | phishing | {user} ({user.id}) | {channel} | {trigger}"
+```
+
+---
+
+## plugins/escalation.py
+
+Two systems. All responses fully customizable in YAML.
+
+Manual escalation:
+Fires after warn/mute/kick.
+Counts existing cases of tracked_type.
+If count matches threshold: apply escalation action.
+Creates new case, DMs user, logs.
+tracked_type "any" counts all types.
+
+Automod escalation:
+In memory violation counts per guild per user per rule.
+Reset after reset_after_hours of inactivity.
+Find highest threshold where count >= threshold count.
+Apply action, create case, DM user, log.
+
+Expose:
+- await check_manual_escalation(ctx, guild_config, user, action_type)
+- await check_automod_escalation(guild, guild_config, member, rule_name, channel)
+
+YAML config:
+```yaml
+plugins:
+  escalation:
+    enabled: true
+    manual:
+      enabled: true
+      thresholds:
+        - tracked_type: "warn"
+          count: 3
+          action: mute
+          duration: "1h"
+          reason: "Escalation: 3 warnings"
+        - tracked_type: "warn"
+          count: 5
+          action: mute
+          duration: "12h"
+          reason: "Escalation: 5 warnings"
+        - tracked_type: "warn"
+          count: 7
+          action: kick
+          reason: "Escalation: 7 warnings"
+        - tracked_type: "warn"
+          count: 10
+          action: ban
+          duration: "perm"
+          reason: "Escalation: 10 warnings"
+        - tracked_type: "mute"
+          count: 3
+          action: kick
+          reason: "Escalation: 3 mutes"
+        - tracked_type: "mute"
+          count: 5
+          action: ban
+          duration: "perm"
+          reason: "Escalation: 5 mutes"
+      messages:
+        escalation_triggered: "{user} has been {action}d due to repeated infractions | Case: {case_id}"
+        escalation_dm: "You have been {action}d in {server} for the following reason: {reason}"
+    automod:
+      enabled: true
+      reset_after_hours: 24
+      rules:
+        spam:
+          thresholds:
+            - count: 1
+              action: mute
+              duration: "10m"
+              reason: "Automod: spamming"
+            - count: 3
+              action: kick
+              reason: "Automod: repeated spamming"
+            - count: 5
+              action: ban
+              duration: "1d"
+              reason: "Automod: extreme spam"
+        bad_words:
+          thresholds:
+            - count: 3
+              action: warn
+              reason: "Automod: repeated bad words"
+            - count: 5
+              action: mute
+              duration: "30m"
+              reason: "Automod: continued bad words"
+        invite_links:
+          thresholds:
+            - count: 2
+              action: warn
+              reason: "Automod: repeated invites"
+            - count: 3
+              action: mute
+              duration: "1h"
+              reason: "Automod: continued invites"
+        phishing:
+          thresholds:
+            - count: 1
+              action: ban
+              duration: "perm"
+              reason: "Automod: phishing"
+      messages:
+        escalation_triggered: "{user} has been {action}d for repeated {rule} violations | Case: {case_id}"
+        escalation_dm: "You have been {action}d in {server} for the following reason: {reason}"
+```
+
+---
+
+## plugins/antinuke.py
+
+Track per-guild per-user action counts in rolling windows in memory.
+Monitor: channel_delete, channel_create, role_delete, role_create,
+ban, kick, webhook_create, role_everyone_update.
+Check whitelist_roles and whitelist_users before acting.
+On threshold exceeded: apply action, create case, log.
+All responses fully customizable in YAML.
+
+YAML config:
+```yaml
+plugins:
+  antinuke:
+    enabled: false
+    whitelist_roles: []
+    whitelist_users: []
+    thresholds:
+      channel_delete: 3
+      channel_create: 5
+      role_delete: 3
+      role_create: 5
+      ban: 5
+      kick: 5
+      webhook_create: 3
+      role_everyone_update: 1
+    interval_seconds: 10
+    action: ban
+    quarantine_role: null
+    messages:
+      triggered: "{user} exceeded the {rule} threshold and was {action}d | Case: {case_id}"
+```
+
+---
+
+## plugins/antiraid.py
+
+Track join timestamps per guild in memory.
+On member join count joins in join_interval_seconds.
+If >= join_threshold activate raid mode.
+Apply action to recent joiners.
+Lock channels.
+Auto unlock after auto_unlock_minutes.
+Check account age against account_age_min_days.
+All responses fully customizable in YAML.
+
+Commands:
+- !raidmode on
+- !raidmode off
+
+YAML config:
+```yaml
+plugins:
+  antiraid:
+    enabled: false
+    join_threshold: 10
+    join_interval_seconds: 10
+    account_age_min_days: 7
+    action: kick
+    lockdown_channels: []
+    auto_unlock_minutes: 10
+    messages:
+      raid_detected: "Raid detected | {count} joins in {duration} | Action: {action} | Affected: {success_count}"
+      raid_ended: "Raid mode ended"
+      new_account_flagged: "New account joined | {user} ({user.id}) | Age: {trigger} days"
+```
+
+---
+
+## plugins/slowmode_auto.py
+
+Track message timestamps per channel in memory.
+On message rate threshold apply slowmode.
+Background task removes slowmode after calm period.
+All responses fully customizable in YAML.
+
+YAML config:
+```yaml
+plugins:
+  slowmode_auto:
+    enabled: false
+    ignore_channels: []
+    ignore_roles: []
+    rules:
+      - channel: null
+        messages_per_seconds: 10
+        window_seconds: 5
+        apply_slowmode: 3
+        remove_after_seconds: 30
+        min_slowmode: 1
+        max_slowmode: 120
+    messages:
+      slowmode_applied: "Slowmode of {count}s applied in {channel.mention} due to high activity"
+      slowmode_removed: "Slowmode removed in {channel.mention}"
+```
+
+---
+
+## plugins/lockdown.py
+
+Named presets in YAML.
+-server flag locks server_lockdown_channels or all channels.
+Store original permissions in locked_channels table.
+Restore exact permissions on unlock.
+All responses fully customizable in YAML.
+
+Commands:
+- !lockdown [#channel] [reason]
+- !lockdown <preset> [reason]
+- !lockdown <preset> -server [reason]
+- !unlock [#channel] [reason]
+- !unlock -server [reason]
+- !lockdown list
+
+YAML config:
+```yaml
+plugins:
+  lockdown:
+    enabled: true
+    server_lockdown_channels: []
+    presets:
+      raid:
+        channels: []
+        reason: "Raid detected"
+        remove_send: true
+        remove_reactions: false
+        remove_threads: true
+      exam:
+        channels: []
+        reason: "Exam period"
+        remove_send: true
+        remove_reactions: false
+        remove_threads: false
+    messages:
+      lockdown_start: "{channel.mention} has been locked | Reason: {reason}"
+      lockdown_end: "{channel.mention} has been unlocked"
+      lockdown_server_start: "Server lockdown activated | {count} channels locked | Reason: {reason}"
+      lockdown_server_end: "Server lockdown lifted | {count} channels unlocked"
+      lockdown_channel_notice: "This channel has been locked by {mod} | Reason: {reason}"
+      unlock_channel_notice: "This channel has been unlocked by {mod}"
+      already_locked: "{channel.mention} is already locked"
+      not_locked: "{channel.mention} is not locked"
+```
+
+---
+
+## plugins/modnick.py
+
+On member join and nickname change check rules.
+If match change to default_name or random from random_names.
+Log, DM user, create note case.
+All responses fully customizable in YAML.
+
+Commands:
+- !modnick @user
+
+YAML config:
+```yaml
+plugins:
+  modnick:
+    enabled: false
+    default_name: "Moderated Nickname"
+    random_names: []
+    log_changes: true
+    rules:
+      hoist: true
+      blank: true
+      unreadable: true
+      zalgo: true
+      bad_words: true
+      mass_mentions: false
+      custom_patterns: []
+    messages:
+      nickname_changed: "{user}'s nickname was changed to {trigger} | Rule: {reason}"
+      nickname_changed_dm: "Your nickname in {server} has been changed to {trigger} because it violated our nickname rules"
+```
+
+---
+
+## plugins/history.py
+
+Full timeline combining cases + history_events.
+Auto log: joins, leaves, nickname changes, role changes, welcome role, temp role expiry.
+All responses fully customizable in YAML.
+
+Commands:
+- !history @user
+- !history @user cases
+- !history @user notes
+- !history @user joins
+- !history @user roles
+- !history clear @user
+
+YAML config:
+```yaml
+plugins:
+  history:
+    enabled: true
+    messages:
+      history_empty: "No history found for {user}"
+      history_cleared: "History cleared for {user}"
+      history_not_found: "No history entries matching that filter"
+```
+
+---
+
+## plugins/duration_roles.py
+
+On role add check if role is in duration_roles config.
+If yes store in duration_role_assignments with expiry.
+Background task removes expired roles.
+Warning DM X days before expiry.
+All responses fully customizable in YAML.
+
+YAML config:
+```yaml
+plugins:
+  duration_roles:
+    enabled: false
+    roles:
+      - role: null
+        duration_days: 30
+        dm_on_removal: true
+        dm_warning_days: 3
+        on_expiry: remove
+        replace_with: null
+    messages:
+      role_expired: "{user}'s {trigger} role has expired and been removed"
+      role_expiry_warning_dm: "Your {trigger} role in {server} expires in {count} days"
+      role_expired_dm: "Your {trigger} role in {server} has expired and been removed"
+      role_replaced_dm: "Your {trigger} role in {server} has expired and been replaced with {reason}"
+```
+
+---
+
+## plugins/utility.py
+
+All responses fully customizable in YAML.
+Help system reads enabled plugins and level requirements from YAML.
+Disabled plugins hidden from help.
+Commands below user level show with lock icon.
+Custom entries added via custom_help_entries in YAML.
+
+Commands:
+- !userinfo [@user]
+- !avatar [@user]
+- !banner [@user]
+- !roles [@user]
+- !joined [@user]
+- !firstmsg [@user] [#channel]
+- !bansearch <user_id>
+- !casesearch <keyword>
+- !warncount [@user]
+- !modstats [@mod]
+- !serverinfo
+- !channelinfo [#channel]
+- !roleinfo <@role>
+- !membercount
+- !botstats
+- !botinfo
+- !inviteinfo <code>
+- !snowflake <id>
+- !permissions [@user] [#channel]
+- !inrole <@role>
+- !charcount <text>
+- !embed <json>
+- !help
+- !help <command>
+
+YAML config:
+```yaml
+plugins:
+  utility:
+    enabled: true
+    custom_help_entries: []
+    messages:
+      banner_none: "{user} has no banner set"
+      bansearch_not_found: "{trigger} is not banned"
+      bansearch_invalid: "Invalid user ID"
+      casesearch_none: "No cases found matching {trigger}"
+      inrole_empty: "No members have that role"
+      help_not_found: "Command {trigger} not found"
+```
+
+---
+
+## plugins/timezones.py
+
+All responses fully customizable in YAML.
+
+Commands:
+- !timezone set <timezone>
+- !timezone get [@user]
+- !timezone list
+- !timezone clear
+- !time [@user]
+- !timefor <timezone>
+- !timeconvert <time> <from> <to>
+
+YAML config:
+```yaml
+plugins:
+  timezones:
+    enabled: true
+    messages:
+      timezone_set: "Your timezone has been set to {trigger}"
+      timezone_get: "{user}'s timezone is {trigger}"
+      timezone_cleared: "Your timezone has been cleared"
+      timezone_not_set: "{user} has not set a timezone"
+      timezone_invalid: "Invalid timezone. Use a valid tz identifier e.g. America/New_York"
+      timezone_list_empty: "No members have set a timezone yet"
+      time_result: "Current time for {user}: {trigger}"
+      timefor_result: "Current time in {trigger}: {reason}"
+```
+
+---
+
+## plugins/reminders.py
+
+Background task fires reminder in channel and DMs user.
+All responses fully customizable in YAML.
+
+Commands:
+- !remind <duration> <message>
+- !reminders
+- !delreminder <id>
+
+YAML config:
+```yaml
+plugins:
+  reminders:
+    enabled: true
+    messages:
+      reminder_set: "Reminder set for {duration} | Message: {reminder_message}"
+      reminder_fired: "{user.mention} Reminder: {reminder_message} | Set: {reminder_set_at}"
+      reminder_not_found: "Reminder not found"
+      reminder_deleted: "Reminder deleted"
+      reminder_list_empty: "You have no active reminders"
+```
+
+---
+
+## plugins/roles.py
+
+Background task removes expired temp roles.
+All responses fully customizable in YAML.
+
+Commands:
+- !addrole @user <@role> [reason]
+- !removerole @user <@role> [reason]
+- !temprole @user <@role> <duration> [reason]
+- !temproles [@user]
+
+YAML config:
+```yaml
+plugins:
+  roles:
+    enabled: true
+    dm_on_action: true
+    messages:
+      addrole_success: "{user} has been given {trigger} | Reason: {reason}"
+      removerole_success: "{trigger} has been removed from {user} | Reason: {reason}"
+      temprole_success: "{user} has been given {trigger} | Duration: {duration} | Expires: {expires_at}"
+      temprole_dm: "You have been given {trigger} in {server} for the following reason: {reason} | Duration: {duration}"
+      temprole_expired: "{user} temp role {trigger} has expired"
+      temprole_expired_dm: "Your temporary role {trigger} in {server} has expired"
+      temprole_list_empty: "No active temp roles"
+      error_role_not_found: "Role not found"
+      error_already_has_role: "{user} already has {trigger}"
+      error_missing_role: "{user} does not have {trigger}"
+      error_role_hierarchy: "That role is above my highest role"
+      error_managed_role: "That role is managed by an integration"
+```
+
+---
+
+## plugins/reaction_roles.py
+
+Three panel types: emoji, button, dropdown.
+Persist views across restarts using stored message IDs.
+All responses fully customizable in YAML.
+
+Commands:
+- !rr create <name> <type> [#channel]
+- !rr add <name> <@role> <emoji_or_label> [description]
+- !rr remove <name> <@role>
+- !rr post <name>
+- !rr edit <name> description <text>
+- !rr setmax <name> <number>
+- !rr setrequired <name> <@role>
+- !rr delete <name>
+- !rr list
+- !rr info <name>
+
+YAML config:
+```yaml
+plugins:
+  reaction_roles:
+    enabled: true
+    messages:
+      rr_created: "Panel {trigger} created"
+      rr_entry_added: "Role {trigger} added to panel {reason}"
+      rr_entry_removed: "Role {trigger} removed from panel {reason}"
+      rr_posted: "Panel {trigger} posted in {channel.mention}"
+      rr_deleted: "Panel {trigger} deleted"
+      rr_not_found: "Panel {trigger} not found"
+      rr_list_empty: "No reaction role panels found"
+      rr_max_reached: "You have reached the maximum number of roles for this panel"
+      rr_missing_required: "You need {trigger} to use this panel"
+      rr_role_given: "You have been given {trigger}"
+      rr_role_removed: "You no longer have {trigger}"
+```
+
+---
+
+## plugins/welcome.py
+
+All responses fully customizable in YAML.
+All message fields support embeds opt-in.
+
+On member join:
+- Check account_age_gate, kick if too new
+- Assign welcome_role
+- Check rejoin_restore_roles
+- Send join_dm
+- Send welcome message
+- Update member_count_channel
+
+On member leave:
+- Send goodbye message
+- Update member_count_channel
+
+Commands:
+- !welcome test
+- !goodbye test
+- !welcomedm test
+
+YAML config:
+```yaml
+plugins:
+  welcome:
+    enabled: true
+    welcome:
+      enabled: true
+      channel: null
+      ping: false
+      delete_after: null
+      message: "Welcome to {server}, {user.mention}! You are member #{server.member_count}."
+    goodbye:
+      enabled: true
+      channel: null
+      delete_after: null
+      message: "{user} has left {server}."
+    join_dm:
+      enabled: false
+      message: "Welcome to {server}!"
+    welcome_role:
+      enabled: false
+      role: null
+    rejoin_restore_roles:
+      enabled: false
+      ignore_roles: []
+    account_age_gate:
+      enabled: false
+      min_age_days: 7
+      kick: true
+      message: "You have been kicked from {server} because your account is too new. Please wait {trigger} more days."
+    member_count_channel:
+      enabled: false
+      channel: null
+      format: "Members: {server.member_count}"
+      update_on: both
+```
+
+---
+
+## plugins/starboard.py
+
+On reaction add/remove track star counts.
+Post to starboard channel when threshold reached.
+Update existing post if already starred.
+Persist across restarts.
+All responses fully customizable in YAML.
+
+Commands:
+- !starboard top [count]
+- !starboard stats [@user]
+- !starboard clear @user
+- !starboard ignore @user
+
+YAML config:
+```yaml
+plugins:
+  starboard:
+    enabled: false
+    channel: null
+    emoji: "⭐"
+    threshold: 3
+    self_star: false
+    remove_on_unstar: false
+    ignore_channels: []
+    ignore_roles: []
+    ignored_users: []
+    nsfw_allowed: false
+    max_age_days: 7
+    bots_allowed: false
+    format:
+      header: "{emoji} **{star_count}** {channel.mention}"
+      embed:
+        color: "#FFD700"
+        description: "{content}"
+        image: "{image}"
+        fields:
+          - name: "Original"
+            value: "[Jump to message]({message_link})"
+            inline: true
+          - name: "Author"
+            value: "{user.mention}"
+            inline: true
+    messages:
+      starboard_empty: "No starred messages found"
+      stats_none: "No star data found for {user}"
+      starboard_cleared: "Starboard entries cleared for {user}"
+```
+
+---
+
+## plugins/tags.py
+
+Tags defined in YAML only under tags key as key value pairs.
+
+Commands:
+- !tag <name>
+- !tag list
+
+YAML config:
+```yaml
+tags:
+  rules: "Please read the rules!"
+  support: "Open a ticket in #support."
+
+plugins:
+  tags:
+    enabled: true
+    messages:
+      tag_not_found: "Tag {trigger} not found"
+      tag_list_empty: "No tags created yet"
+```
+
+---
+
+## plugins/autoreply.py
+
+Triggers: contains, exact, startswith, endswith, regex.
+Reply types: message, reply, dm.
+delete_trigger, delete_after, cooldown_seconds options.
+Static rules in YAML stack with database rules.
+All responses fully customizable in YAML.
+
+Commands:
+- !autoreply add <type> <trigger> <response>
+- !autoreply remove <id>
+- !autoreply list
+- !autoreply info <id>
+- !autoreply enable <id>
+- !autoreply disable <id>
+- !autoreply edit <id> response <new>
+- !autoreply toggle deletetrigger <id>
+- !autoreply cooldown <id> <seconds>
+
+YAML config:
+```yaml
+plugins:
+  autoreply:
+    enabled: true
+    replies:
+      - id: "example"
+        trigger: "how do i open a ticket"
+        trigger_type: "contains"
+        match_case: false
+        reply_type: "reply"
+        response: "Head to #support and click the Open Ticket button!"
+        delete_after: null
+        cooldown_seconds: 30
+        ignore_channels: []
+        ignore_roles: []
+        only_channels: []
+        only_roles: []
+    messages:
+      autoreply_added: "Auto reply #{trigger} added"
+      autoreply_removed: "Auto reply #{trigger} removed"
+      autoreply_enabled: "Auto reply #{trigger} enabled"
+      autoreply_disabled: "Auto reply #{trigger} disabled"
+      autoreply_edited: "Auto reply #{trigger} updated"
+      autoreply_not_found: "Auto reply #{trigger} not found"
+      autoreply_list_empty: "No auto replies set up"
+```
+
+---
+
+## plugins/autoreaction.py
+
+All responses fully customizable in YAML.
+
+Commands:
+- !autoreaction add <type> <trigger> <emoji1> [emoji2]...
+- !autoreaction remove <id>
+- !autoreaction list
+- !autoreaction enable <id>
+- !autoreaction disable <id>
+- !autoreaction edit <id> <emoji1> [emoji2]...
+
+YAML config:
+```yaml
+plugins:
+  autoreaction:
+    enabled: true
+    reactions:
+      - id: "example"
+        trigger: "good morning"
+        trigger_type: "contains"
+        match_case: false
+        emojis: ["☀️", "👋"]
+        cooldown_seconds: 0
+        ignore_channels: []
+        ignore_roles: []
+    messages:
+      autoreaction_added: "Auto reaction #{trigger} added"
+      autoreaction_removed: "Auto reaction #{trigger} removed"
+      autoreaction_enabled: "Auto reaction #{trigger} enabled"
+      autoreaction_disabled: "Auto reaction #{trigger} disabled"
+      autoreaction_not_found: "Auto reaction #{trigger} not found"
+      autoreaction_list_empty: "No auto reactions set up"
+```
+
+---
+
+## plugins/autoclean.py
+
+Three modes: interval, keepx, maxage.
+delay_seconds between individual deletes.
+ignore_pinned, ignore_roles, ignore_bots options.
+Bulk delete for messages under 14 days.
+Individual delete for older messages.
+Static rules in YAML stack with database rules.
+All responses fully customizable in YAML.
+
+Commands:
+- !autoclean add <#channel> <mode> <value>
+- !autoclean remove <#channel>
+- !autoclean list
+- !autoclean enable <#channel>
+- !autoclean disable <#channel>
+- !autoclean setdelay <#channel> <seconds>
+- !autoclean setignorepinned <#channel> <true|false>
+- !autoclean ignorerole <#channel> <@role>
+- !autoclean now <#channel>
+
+YAML config:
+```yaml
+plugins:
+  autoclean:
+    enabled: true
+    channels:
+      - channel: null
+        mode: "interval"
+        interval_seconds: 3600
+        delay_seconds: 0
+        ignore_pinned: true
+        ignore_bots: false
+        ignore_roles: []
+        enabled: true
+    messages:
+      autoclean_added: "Autoclean added for {channel.mention} | Mode: {trigger}"
+      autoclean_removed: "Autoclean removed from {channel.mention}"
+      autoclean_enabled: "Autoclean enabled for {channel.mention}"
+      autoclean_disabled: "Autoclean disabled for {channel.mention}"
+      autoclean_updated: "Autoclean updated for {channel.mention}"
+      autoclean_not_found: "No autoclean rule found for {channel.mention}"
+      autoclean_list_empty: "No autoclean rules set up"
+      autoclean_ran: "Autoclean ran in {channel.mention} | Deleted: {count} messages"
+```
+
+---
+
+## plugins/tickets.py
+
+Panel types: button, dropdown.
+Persist buttons across restarts.
+All responses fully customizable in YAML.
+
+Setup commands:
+- !ticket panel create <name> <type> [#channel]
+- !ticket panel addcategory <name> <label> [emoji]
+- !ticket panel post <name>
+- !ticket panel delete <name>
+- !ticket panel list
+
+Ticket commands (inside ticket channel only):
+- !ticket close [reason]
+- !ticket claim
+- !ticket unclaim
+- !ticket delete [reason]
+- !ticket adduser @user
+- !ticket removeuser @user
+- !ticket rename <name>
+- !ticket transcript
+
+Blacklist commands:
+- !ticket blacklist @user [reason]
+- !ticket unblacklist @user
+- !ticket blacklist list
+
+On ticket open:
+- Check blacklist
+- Check max open tickets per user
+- Create channel with correct permissions
+- Send welcome message
+- Post close/claim/delete buttons
+- Ping support roles
+- Log to log_channel
+
+On close/delete:
+- Generate plain text transcript
+- DM user if dm_transcript true
+- Post to transcript_channel
+- Log to log_channel
+
+YAML config:
+```yaml
+plugins:
+  tickets:
+    enabled: true
+    log_channel: null
+    transcript_channel: null
+    dm_transcript: true
+    max_open_per_user: 1
+    messages:
+      ticket_opened: "Your ticket has been opened in {channel.mention}"
+      ticket_already_open: "You already have an open ticket at {channel.mention}"
+      ticket_blacklisted: "You are blacklisted from opening tickets | Reason: {reason}"
+      ticket_closed: "Ticket closed by {mod} | Reason: {reason}"
+      ticket_claimed: "Ticket claimed by {mod.mention}"
+      ticket_unclaimed: "Ticket unclaimed by {mod.mention}"
+      ticket_deleted: "Ticket deleted by {mod} | Reason: {reason}"
+      adduser_success: "{trigger} has been added to the ticket"
+      removeuser_success: "{trigger} has been removed from the ticket"
+      ticket_renamed: "Ticket renamed to {trigger}"
+      blacklist_success: "{user} has been blacklisted from tickets | Reason: {reason}"
+      unblacklist_success: "{user} has been removed from the ticket blacklist"
+      blacklist_list_empty: "No users are blacklisted from tickets"
+      not_a_ticket: "This command can only be used inside a ticket channel"
+      transcript_sent: "Transcript sent to {user.mention}"
+```
+
+---
+
+## plugins/dev.py
+
+All commands silently ignore anyone who is not BOT_OWNER_ID.
+Work in DMs and any channel.
+
+Commands:
+- !whitelist <server_id> <owner_id> [notes]
+- !unwhitelist <server_id> [reason]
+- !whitelistlist
+- !whitelistinfo <server_id>
+- !whitelistnotes <server_id> <notes>
+- !transferowner <server_id> <new_owner_id>
+- !devleave <server_id>
+- !devservers
+- !deveval <code>
+- !devreload <plugin>
+- !devreloadall
+- !devstats
+
+---
+
+## Background Tasks
+
+All running on bot startup:
+
+Every 30 seconds:
+- Unmute expired mutes (restore roles if mute_remove_roles true)
+- Unban expired temp bans
+- Remove expired temp roles
+- Fire due reminders
+
+Every 60 seconds:
+- Remove expired duration roles
+- Run autoclean rules
+- Check slowmode_auto calm periods
+- Check nick locks
+
+Every 10 minutes:
+- Update member count channels
+
+---
+
+## requirements.txt
